@@ -45,20 +45,31 @@ def configurar_debugger():
 configurar_debugger()
 
 
-# @app.route(API_BASE + '/avatar/<hash>.json', methods=['GET'])
-# @jsonapi
-def obtener_avatar(hash):
-    return UsersModel.obtener_avatar(hash=hash)
-
 # @app.route(API_BASE + '/avatar/', methods=['GET'], defaults={'hash':None})
-# @app.route(API_BASE + '/avatar/<hash>', methods=['GET'])
+@app.route(API_BASE + '/avatar/<hash>', methods=['GET'])
 def obtener_avatar_binario(hash):
-    avatar = obtener_avatar(hash)
-    r = make_response()
-    r.status_code = 200
-    r.data = base64.b64decode(avatar['data'])
-    r.headers['Content-Type'] = avatar['content-type']
-    return r
+
+    avatar = None
+    b64 = bool(request.params.get('b64',False))
+
+    if not b64:
+        r = make_response()
+        r.status_code = 200
+        r.data = base64.b64decode(avatar['data'])
+        r.headers['Content-Type'] = avatar['content-type']
+        return r
+    else:
+        pass
+
+@app.route(API_BASE + '/avatar/<hash>', methods=['PUT','POST'])
+@jsonapi
+def agregar_actualizar_avatar(hash):
+    data = request.get_json()
+    avatar = data['avatar']
+    ''' agrego el avatar en la base en base64 '''
+    return ({status:200}, 200)
+
+"""
 
 @app.route(API_BASE + '/avatar/<hash>', methods=['PUT','POST'])
 @warden.require_valid_token
@@ -88,343 +99,7 @@ def obtener_avatar_binario_por_usuario(uid, token=None):
     h = hashlib.md5(uid.encode()).hexdigest()
     return obtener_avatar_binario(h)
 
-@app.route(API_BASE + '/usuario_por_dni/<dni>', methods=['GET'])
-@warden.require_valid_token
-@jsonapi
-def usuario_por_dni(dni, token=None):
-    prof = warden.has_all_profiles(token, ['users-super-admin'])
-    if not prof or not prof['profile']:
-        return ('Insuficient access', 401)
-
-    with obtener_session() as s:
-        u = UsersModel.usuario_por_dni(session=s, dni=dni)
-        return u
-
-@app.route(API_BASE + '/usuarios/', methods=['GET'], defaults={'uid':None})
-@app.route(API_BASE + '/usuarios/<uid>', methods=['GET'])
-@warden.require_valid_token
-@jsonapi
-def usuarios(uid, token=None):
-
-    """
-    para poder debuggear el require valid token.
-    token = warden._require_valid_token()
-    if not token:
-        return warden._invalid_token()
-    """
-
-    search = request.args.get('q', None)
-    offset = request.args.get('offset',None,int)
-    limit = request.args.get('limit',None,int)
-
-    admin = False
-    prof = warden.has_all_profiles(token, ['users-super-admin'])
-    if prof and prof['profile']:
-        admin = True
-    else:
-        prof = warden.has_all_profiles(token, ['users-admin'])
-        if prof:
-            admin = prof['profile']
-
-    if not admin:
-        auid = token['sub']
-        if auid != uid:
-            return ('no tiene los permisos suficientes', 403)
-
-    with obtener_session() as session:
-        if uid:
-            us = UsersModel.usuario(session=session, uid=uid)
-            return us
-        else:
-            us = UsersModel.usuarios(session=session, search=search, offset=offset, limit=limit)
-            return us
-
-@app.route(API_BASE + '/usuarios', methods=['PUT'])
-@warden.require_valid_token
-@jsonapi
-def crear_usuario(token=None):
-
-    prof = warden.has_one_profile(token, ['users-super-admin', 'users-admin'])
-    if not prof['profile']:
-        return ('no tiene los permisos suficientes', 403)
-
-    usuario = request.get_json()
-    logging.debug(usuario)
-    with obtener_session() as session:
-        uid = UsersModel.crear_usuario(session, usuario)
-        session.commit()
-        return uid
-
-@app.route(API_BASE + '/usuarios/<uid>', methods=['PUT','POST'])
-@warden.require_valid_token
-@jsonapi
-def actualizar_usuario(uid, token=None):
-
-    admin = False
-    prof = warden.has_all_profiles(token, ['users-super-admin'])
-    if prof and prof['profile']:
-        admin = True
-    else:
-        prof = warden.has_all_profiles(token, ['users-admin'])
-        if prof:
-            admin = prof['profile']
-
-    if not admin:
-        auid = token['sub']
-        if auid != uid:
-            return ('no tiene los permisos suficientes', 403)   
-
-    datos = json.loads(request.data)
-    with obtener_session() as session:
-        UsersModel.actualizar_usuario(session, uid, datos)
-        session.commit()
-        return uid
-
-
-@app.route(API_BASE + '/usuarios/<uid>/correos', methods=['GET'], defaults={'cid':None})
-@app.route(API_BASE + '/usuarios/<uid>/correos/', methods=['GET'], defaults={'cid':None})
-@app.route(API_BASE + '/usuarios/<uid>/correos/<cid>', methods=['GET'])
-@warden.require_valid_token
-@jsonapi
-def correos_de_usuario(uid, cid, token=None):
-
-    admin = False
-    prof = warden.has_all_profiles(token, ['users-super-admin'])
-    if prof and prof['profile']:
-        admin = True
-    else:
-        prof = warden.has_all_profiles(token, ['users-admin'])
-        if prof:
-            admin = prof['profile']
-
-    if not admin:
-        auid = token['sub']
-        if auid != uid:
-            return ('no tiene los permisos suficientes', 403)        
-
-    offset = request.args.get('offset',None,int)
-    limit = request.args.get('limit',None,int)
-    h = request.args.get('h',False,bool)
-    with obtener_session() as session:
-        return UsersModel.correos(session=session, usuario=uid, historico=h, offset=offset, limit=limit)
-
-@app.route(API_BASE + '/usuarios/<uid>/correo_institucional', methods=['PUT','POST'])
-@warden.require_valid_token
-@jsonapi
-def agregar_correo_institucional(uid, token=None):
-
-    prof = warden.has_one_profile(token, ['users-super-admin', 'users-admin'])
-    if not prof['profile']:
-        return ('no tiene los permisos suficientes', 403)
-
-    assert uid != None
-    datos = json.loads(request.data)
-    assert datos['email'] != None
-    with obtener_session() as session:
-        if not UsersModel.existe(session=session, usuario=uid):
-            raise Exception('Usuario no existente')
-
-        mail = UsersModel.obtener_correo_por_cuenta(session=session, cuenta=datos['email'])
-        if not mail:
-            mail = UsersModel.agregar_correo_institucional(session=session, uid=uid, datos=datos)
-            session.commit()
-        else:
-            mail.confirmado = datetime.datetime.now()
-            session.commit()
-        return mail.id
-
-@app.route(API_BASE + '/usuarios/<uid>/correos/', methods=['PUT','POST'])
-@warden.require_valid_token
-@jsonapi
-def agregar_correo(uid, token=None):
-
-    admin = False
-    prof = warden.has_all_profiles(token, ['users-super-admin'])
-    if prof and prof['profile']:
-        admin = True
-    else:
-        prof = warden.has_all_profiles(token, ['users-admin'])
-        if prof:
-            admin = prof['profile']
-
-    if not admin:
-        auid = token['sub']
-        if auid != uid:
-            return ('no tiene los permisos suficientes', 403)
-
-    assert uid != None
-    datos = json.loads(request.data)
-    with obtener_session() as session:
-        cid = UsersModel.agregar_correo(session=session, uid=uid, datos=datos)
-        session.commit()
-        UsersModel.enviar_confirmar_correo(session, cid)
-        session.commit()
-        return {'cid':cid}
-
-@app.route(API_BASE + '/usuarios/<uid>/correos/<cid>', methods=['DELETE'])
-@app.route(API_BASE + '/correos/<cid>', methods=['DELETE'])
-@warden.require_valid_token
-@jsonapi
-def eliminar_correo(uid=None, cid=None, token=None):
-
-    if not uid:
-        uid = token['sub']
-
-    prof = warden.has_one_profile(token, ['users-super-admin', 'users-admin'])
-    if not prof['profile']:
-        if uid != token['sub']:
-            return ('no tiene los permisos suficientes', 403)
-
-    assert uid != None
-    assert cid != None
-    with obtener_session() as session:
-        UsersModel.eliminar_correo(session, cid)
-        session.commit()
-        return {'id':cid}
-
-
-@app.route(API_BASE + '/usuarios/<uid>/telefonos/<tid>', methods=['DELETE'])
-@app.route(API_BASE + '/telefonos/<tid>', methods=['DELETE'])
-@warden.require_valid_token
-@jsonapi
-def eliminar_telefono(uid=None, tid=None, token=None):
-
-    prof = warden.has_one_profile(token, ['users-super-admin', 'users-admin'])
-    if not prof['profile']: 
-        return ('no tiene los permisos suficientes', 403)
-
-    assert uid != None
-    assert tid != None
-    with obtener_session() as session:
-        UsersModel.eliminar_telefono(session, tid)
-        session.commit()
-        return {'id':tid}
-
-
-@app.route(API_BASE + '/usuarios/<uid>/correos/<cid>/enviar_confirmar', methods=['GET'])
-@warden.require_valid_token
-@jsonapi
-def enviar_confirmar_correo(uid, cid, token=None):
-
-    admin = False
-    prof = warden.has_all_profiles(token, ['users-super-admin'])
-    if prof and prof['profile']:
-        admin = True
-    else:
-        prof = warden.has_all_profiles(token, ['users-admin'])
-        if prof:
-            admin = prof['profile']
-
-    if not admin:
-        auid = token['sub']
-        if auid != uid:
-            return ('no tiene los permisos suficientes', 403)
-
-    with obtener_session() as session:
-        UsersModel.enviar_confirmar_correo(session, cid)
-        session.commit()
-
-@app.route(API_BASE + '/usuarios/<uid>/correos/<cid>/confirmar', methods=['PUT','POST'])
-@warden.require_valid_token
-@jsonapi
-def confirmar_correo(uid, cid, token=None):
-
-    admin = False
-    prof = warden.has_all_profiles(token, ['users-super-admin'])
-    if prof and prof['profile']:
-        admin = True
-    else:
-        prof = warden.has_all_profiles(token, ['users-admin'])
-        if prof:
-            admin = prof['profile']
-
-    if not admin:
-        auid = token['sub']
-        if auid != uid:
-            return ('no tiene los permisos suficientes', 403)
-
-    assert cid is not None
-    code = json.loads(request.data)['codigo']
-    with obtener_session() as session:
-        UsersModel.confirmar_correo(session=session, cid=cid, code=code)
-        session.commit()
-
-@app.route(API_BASE + '/correos/<cuenta>', methods=['GET'])
-@warden.require_valid_token
-@jsonapi
-def chequear_disponibilidad_cuenta(cuenta, token=None):
-
-    prof = warden.has_one_profile(token, ['users-super-admin', 'users-admin'])
-    if not prof['profile']:
-        return ('no tiene los permisos suficientes', 403)
-
-    with obtener_session() as session:
-        correo = UsersModel.obtener_correo_por_cuenta(session=session, cuenta=cuenta)
-        if correo:
-            return {'existe':True, 'correo': correo}
-        else:
-            return {'existe':False, 'correo':None}
-
-
 """
-    //////////////////////////////////////////////////////////
-    ///////////////////// SINC GOOGLE ////////////////////////
-    //////////////////////////////////////////////////////////
-"""
-
-from users.model.google.GoogleModel import GoogleModel
-
-@app.route(API_BASE + '/usuarios/<uid>/sincronizar_google', methods=['GET'])
-#@warden.require_valid_token
-@jsonapi
-def sincronizar_usuario(uid, token=None):
-
-    with obtener_session() as session:
-        r = GoogleModel.sincronizar(session, uid)
-        return r
-
-@app.route(API_BASE + '/usuarios/sincronizar_google', methods=['GET'])
-#@warden.require_valid_token
-@jsonapi
-def sincronizar_usuarios(token=None):
-
-    with obtener_session() as session:
-        r = GoogleModel.sincronizar_dirty(session)
-        session.commit()
-        return r
-
-
-
-
-"""
-    ////////////////////////////////////////////////////////////////
-    //////////////////////// PRECONDICIONES ////////////////////////
-    ////////////////////////////////////////////////////////////////
-"""
-
-@app.route(API_BASE + '/precondiciones', methods=['GET'])
-@warden.require_valid_token
-@jsonapi
-def chequear_precondiciones_usuario(token=None):
-    uid = token['sub']
-    assert uid is not None
-    with obtener_session() as s:
-        return UsersModel.precondiciones(s,uid)
-
-@app.route(API_BASE + '/usuarios/<uid>/precondiciones', methods=['GET'])
-@warden.require_valid_token
-@jsonapi
-def chequear_precondiciones_de_usuario(uid, token=None):
-    assert uid is not None
-    prof = warden.has_one_profile(token, ['users-super-admin', 'users-admin'])
-    if not prof['profile']:
-        return ('no tiene los permisos suficientes', 403)
-
-    with obtener_session() as s:
-        return UsersModel.precondiciones(s,uid)
-
-
-
 
 
 
