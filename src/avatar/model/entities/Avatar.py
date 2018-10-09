@@ -5,6 +5,6 @@ class Avatar(Base):
 
     __tablename__ = 'avatar'
 
-    data = Column(string)
-    content-type = Column(String)
+    data = Column(String)
+    content_type = Column(String)
     hash = Column(String)

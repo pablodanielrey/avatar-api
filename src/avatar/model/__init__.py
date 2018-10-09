@@ -13,8 +13,6 @@ from sqlalchemy.orm import sessionmaker
 from model_utils import Base
 from .entities import *
 
-EMAILS_API_URL = os.environ['EMAILS_API_URL']
-
 
 @contextlib.contextmanager
 def obtener_session():
