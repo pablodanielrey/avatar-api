@@ -49,7 +49,7 @@ configurar_debugger()
 @app.route(API_BASE + '/avatar/<hash>', methods=['GET'])
 def obtener_avatar_binario(hash):
 
-    avatar = None
+    avatar = AvatarModel.obtener_avatar(hash=hash)
     b64 = bool(request.params.get('b64',False))
 
     if not b64:
