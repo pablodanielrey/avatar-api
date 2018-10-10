@@ -6,13 +6,13 @@ import hashlib
 import os
 
 from flask import Flask, abort, make_response, jsonify, url_for, request, json, send_from_directory, send_file
-from users.model import UsersModel
+from avatar.model import AvatarModel
 from flask_jsontools import jsonapi
 from dateutil import parser
 import datetime
 
 from rest_utils import register_encoder
-from users.model import obtener_session
+from avatar.model import obtener_session
 
 VERIFY_SSL = bool(int(os.environ.get('VERIFY_SSL',0)))
 OIDC_URL = os.environ['OIDC_URL']
@@ -49,17 +49,18 @@ configurar_debugger()
 @app.route(API_BASE + '/avatar/<hash>', methods=['GET'])
 def obtener_avatar_binario(hash):
 
-    avatar = AvatarModel.obtener_avatar(hash=hash)
-    b64 = bool(request.params.get('b64',False))
+    with obtener_session() as s:
+        avatar = AvatarModel.obtener_avatar(session=s, hash=hash)
+    b64 = bool(request.args.get('b64',False))
 
     if not b64:
         r = make_response()
         r.status_code = 200
-        r.data = base64.b64decode(avatar['data'])
-        r.headers['Content-Type'] = avatar['content-type']
+        r.data = base64.b64decode(avatar.data)
+        r.headers['Content-Type'] = avatar.content_type
         return r
     else:
-        pass
+        return avatar.data
 
 @app.route(API_BASE + '/avatar/<hash>', methods=['PUT','POST'])
 @jsonapi
