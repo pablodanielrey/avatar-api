@@ -1,6 +1,26 @@
 from .entities import *
+import uuid
 
 class AvatarModel:
+
+    @classmethod
+    def actualizar_avatar(cls, session, hash, data):
+        assert hash is not None
+        avatar = session.query(Avatar).filter(Avatar.hash == hash).one_or_none()
+        if avatar is None:
+            avatar = Avatar()
+            avatar.id = str(uuid.uuid4())
+            avatar.hash = hash
+            avatar.content_type = data['content_type']
+            avatar.data = data['b64']
+            session.add(avatar)
+            return avatar.id
+        else:
+            avatar.hash = hash
+            avatar.content_type = data['content_type']
+            avatar.data = data['b64']
+            return avatar.id                        
+        
 
     @classmethod
     def obtener_avatar(cls, session, hash):

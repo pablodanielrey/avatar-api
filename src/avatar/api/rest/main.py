@@ -64,11 +64,13 @@ def obtener_avatar_binario(hash):
 
 @app.route(API_BASE + '/avatar/<hash>', methods=['PUT','POST'])
 @jsonapi
-def agregar_actualizar_avatar(hash):
+def actualizar_avatar(hash):
     data = request.get_json()
-    avatar = data['avatar']
-    ''' agrego el avatar en la base en base64 '''
-    return ({status:200}, 200)
+    with obtener_session() as session:
+        id = AvatarModel.actualizar_avatar(session=session, hash=hash, data=data)        
+        session.commit()
+        return id
+    # return ({status:200}, 200)
 
 """
 
