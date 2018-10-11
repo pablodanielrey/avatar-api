@@ -1,2 +1,2 @@
 #!/bin/bash
-sudo docker build -t users-api -f docker/dockerfile .
+sudo docker build -t avatar-api -f docker/dockerfile .
